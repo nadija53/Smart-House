@@ -1,0 +1,186 @@
+//“Pametna vrata”
+#include <Keypad.h> 
+#include <LiquidCrystal_I2C.h>
+#include <Servo.h>
+LiquidCrystal_I2C lcd(0x27,16,2);
+Servo servo;
+
+#define Password_Length 5 // the length of the password, if the password is 4 digits long set this to 5
+char Incoming_value = 0;
+
+
+int Position = 10; // position of the servo
+char Particular[Password_Length]; // the password length 
+char Specific[Password_Length] = "1234"; // the password which is called specific in the code, change this to anything you want with the numbers 0-9 and the letters A-D
+byte Particular_Count = 0, Specific_Count = 0; // counts the amount of digits and and checks to see if the password is correct
+char Key; 
+const byte ROWS = 4; 
+const byte COLS = 4; 
+char keys[ROWS][COLS] = {
+ 
+  {'1','2','3','A'}, 
+
+  {'4','5','6','B'},
+
+  {'7','8','9','C'},
+
+  {'*','0','#','D'}
+};
+bool SmartDoor = true; // the servo 
+
+byte rowPins[ROWS] = {22, 24, 26, 28};
+byte colPins[COLS] = {30, 32, 34, 36};
+Keypad myKeypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS); // gets the data from the keypad
+
+// locked charcater
+byte Locked[8] = { 
+  B01110,
+  B10001,
+  B10001,
+  B11111,
+  B11011,
+  B11011,
+  B11011,
+  B11111
+};
+// open character
+byte Opened[8] = {
+  B01110,
+  B00001,
+  B00001,
+  B11111,
+  B11011,
+  B11011,
+  B11011,
+  B11111
+};
+
+int gate=13;
+int prekidac=12;
+int stanje;
+void setup()
+{
+
+Serial.begin(9600);
+  pinMode(gate,OUTPUT);
+  pinMode(prekidac,INPUT);
+  
+  servo.attach(46);
+  ServoClose(); 
+  servo.detach();
+  lcd.init(); 
+  lcd.backlight(); 
+  lcd.clear(); 
+
+}
+
+void loop()
+{
+if (Serial.available()   > 0)
+    {
+      Incoming_value = Serial.read();
+      Serial.print(Incoming_value);
+       Serial.print("/n");
+      if (Incoming_value == '1')
+        digitalWrite(gate,HIGH);
+       else //if(Incoming_value == '0')
+        digitalWrite(gate,LOW);
+    }
+  
+ 
+  if (SmartDoor == 0) // opens the smart door
+  {
+    Key = myKeypad.getKey(); // the word key = myKeypad which gets the value
+
+    if (Key == '#') // when the '#' key is pressed
+
+    {
+      servo.attach(46);
+      lcd.clear(); 
+      ServoClose(); 
+      servo.detach();
+      lcd.setCursor(2,0); 
+      lcd.print("Door Closed"); 
+      lcd.createChar(0, Locked); // prints the locked character 
+      lcd.setCursor(14,0); 
+      lcd.write(0); // prints the first character when you are on the door closed page
+      delay(3000); 
+      SmartDoor = 1; // closes the door
+    }
+  }
+
+  else Open(); // keeps the door open
+}
+
+void clearData() 
+{
+  while (Particular_Count != 0) // counts the digits pressed
+  {
+    Particular[Particular_Count--] = 0; // counts how many digits
+  }
+  return; 
+}
+
+void ServoOpen() 
+{
+   servo.attach(46);
+  for (Position = 10; Position <= 100; Position += 5) { 
+    servo.write(Position); 
+    delay(15); 
+  }
+   servo.detach();
+}
+
+void ServoClose()
+{
+   servo.attach(46);
+  for (Position = 100; Position >= 10; Position -= 5) { 
+    servo.write(Position); 
+    delay(15);
+  }
+   servo.detach();
+}
+
+void Open() 
+{
+  lcd.setCursor(1,0);
+  lcd.print("Enter Password:"); 
+  
+  Key = myKeypad.getKey(); // gets the keys you press from the keypad
+  if (Key)
+  {
+    Particular[Particular_Count] = Key; 
+    lcd.setCursor(Particular_Count, 1); 
+    lcd.print("*"); // prints '*' instead of the password
+    Particular_Count++; // counts the length of the password
+  }
+
+  if (Particular_Count == Password_Length - 1) // gets the length of the password 
+  {
+    if (!strcmp(Particular, Specific)) // counts the length and checks to see if the password is correct
+    {
+      lcd.clear();
+      ServoOpen(); 
+      lcd.setCursor(2,0); 
+      lcd.print("Door Opened");
+      lcd.createChar(1, Opened);
+      lcd.setCursor(14,0); 
+      lcd.write(1);
+      lcd.setCursor(0,1); 
+      lcd.print("Press # to Close");
+      SmartDoor = 0;
+    }
+    else
+    {
+      lcd.clear();
+      lcd.setCursor(0,0); 
+      lcd.print("Wrong Password"); 
+      lcd.setCursor(0,1);
+      lcd.print("Try Again");
+      delay(1000);
+      lcd.clear();
+      SmartDoor = 1; // closes the smart door
+    }
+    clearData(); 
+  }
+}
